@@ -51,6 +51,10 @@ export interface MatchState {
     totalOvers: number;
     maxWickets: number;
     isTournament: boolean;
+    tournamentName?: string;
+    currentMatch?: number;
+    totalMatches?: number;
+    teams?: string[];
   };
   isFirstInnings: boolean;
   isMatchComplete: boolean;

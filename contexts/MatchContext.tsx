@@ -44,6 +44,10 @@ const initialState: MatchState = {
     totalOvers: 10,
     maxWickets: 10,
     isTournament: false,
+    tournamentName: '',
+    currentMatch: 1,
+    totalMatches: 1,
+    teams: [] as string[],
   },
   isFirstInnings: true,
   isMatchComplete: false,
@@ -61,25 +65,51 @@ const matchReducer = (state: MatchState, action: MatchAction): MatchState => {
   const currentTeam = state.team1.isBatting ? 'team1' : 'team2';
   const otherTeam = currentTeam === 'team1' ? 'team2' : 'team1';
   const currentBatsmanId = state.currentBatsmen[0];
+  const currentTeamState = state[currentTeam];
+  const isNewOver = currentTeamState.balls >= 5;
+  const totalBalls = state.matchSettings.totalOvers * 6;
+  const ballsBowled = currentTeamState.overs * 6 + currentTeamState.balls;
+  const isInningsComplete = 
+    currentTeamState.wickets >= state.matchSettings.maxWickets - 1 || 
+    ballsBowled >= totalBalls;
+
+  const updateBatsman = (player: Player, runs: number) => ({
+    ...player,
+    runs: player.runs + runs,
+    ballsFaced: player.ballsFaced + 1,
+  });
+
+  const updateBowlingFigures = () => {
+    // Implement bowler stats update if needed
+  };
 
   switch (action.type) {
-    case 'ADD_RUNS':
-      return {
+    case 'ADD_RUNS': {
+      const newBalls = (currentTeamState.balls + 1) % 6;
+      const newOvers = isNewOver ? currentTeamState.overs + 1 : currentTeamState.overs;
+      
+      const newState = {
         ...state,
         [currentTeam]: {
-          ...state[currentTeam],
-          totalRuns: state[currentTeam].totalRuns + action.payload,
-          balls: (state[currentTeam].balls + 1) % 6,
-          overs: state[currentTeam].balls === 5 ? state[currentTeam].overs + 1 : state[currentTeam].overs,
-          players: state[currentTeam].players.map(player => 
+          ...currentTeamState,
+          totalRuns: currentTeamState.totalRuns + action.payload,
+          balls: newBalls,
+          overs: isNewOver ? newOvers : currentTeamState.overs,
+          players: currentTeamState.players.map(player => 
             player.id === currentBatsmanId 
-              ? { ...player, runs: player.runs + action.payload, ballsFaced: player.ballsFaced + 1 }
+              ? updateBatsman(player, action.payload)
               : player
           ),
         },
       };
 
-    case 'ADD_WICKET':
+      // Update bowler's figures if needed
+      updateBowlingFigures();
+
+      return newState;
+    }
+
+    case 'ADD_WICKET': {
       const updatedPlayers = state[currentTeam].players.map(player => 
         player.id === action.payload.playerId 
           ? { ...player, isOut: true, howOut: action.payload.howOut }
@@ -92,20 +122,23 @@ const matchReducer = (state: MatchState, action: MatchAction): MatchState => {
         ? [nextBatsman.id, state.currentBatsmen[1]] 
         : state.currentBatsmen;
 
+      const newBalls = (currentTeamState.balls + 1) % 6;
+      const newOvers = isNewOver ? currentTeamState.overs + 1 : currentTeamState.overs;
+      const newWickets = currentTeamState.wickets + 1;
+
       return {
         ...state,
         [currentTeam]: {
-          ...state[currentTeam],
-          wickets: state[currentTeam].wickets + 1,
-          balls: (state[currentTeam].balls + 1) % 6,
-          overs: state[currentTeam].balls === 5 ? state[currentTeam].overs + 1 : state[currentTeam].overs,
+          ...currentTeamState,
+          wickets: newWickets,
+          balls: newBalls,
+          overs: isNewOver ? newOvers : currentTeamState.overs,
           players: updatedPlayers,
         },
         currentBatsmen: newBatsmen,
-        isMatchComplete: state[currentTeam].wickets + 1 >= state.matchSettings.maxWickets || 
-                         (state[currentTeam].balls === 5 && 
-                          state[currentTeam].overs + 1 >= state.matchSettings.totalOvers),
+        isMatchComplete: isInningsComplete || newWickets >= state.matchSettings.maxWickets - 1,
       };
+    }
 
     case 'TOGGLE_INNINGS':
       return {
